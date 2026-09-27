@@ -7,6 +7,7 @@ from budget_app.validators import (
     validate_amount,
     validate_category,
     validate_date,
+    validate_month,
     validate_type,
 )
 
@@ -181,3 +182,51 @@ class TransactionService:
         results.reverse()
 
         return results
+
+    # 특정 월의 수입, 지출, 잔액과 카테고리별 지출을 요약
+    def get_monthly_summary(
+        self,
+        month: str,
+        top: int = 3,
+    ) -> dict:
+        if not validate_month(month):
+            raise ValueError("월 형식이 올바르지 않습니다.")
+
+        if top <= 0:
+            raise ValueError("top은 1 이상의 정수여야 합니다.")
+
+        total_income = 0
+        total_expense = 0
+        category_expenses: dict[str, int] = {}
+        transaction_count = 0
+
+        for transaction in self.transaction_repository.stream_all():
+            if not transaction.date.startswith(month):
+                continue
+
+            transaction_count += 1
+
+            if transaction.type == "income":
+                total_income += transaction.amount
+
+            elif transaction.type == "expense":
+                total_expense += transaction.amount
+
+                category_expenses[transaction.category] = (
+                    category_expenses.get(transaction.category, 0)
+                    + transaction.amount
+                )
+
+        top_categories = sorted(
+            category_expenses.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:top]
+
+        return {
+            "transaction_count": transaction_count,
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "balance": total_income - total_expense,
+            "top_categories": top_categories,
+        }

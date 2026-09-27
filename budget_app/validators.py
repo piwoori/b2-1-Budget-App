@@ -26,3 +26,12 @@ def validate_amount(value: str) -> bool:
 # 이미 등록되어 있는 카테고리인지 확인
 def validate_category(value: str, categories: list[str]) -> bool:
     return value in categories
+
+
+# YYYY-MM 형식의 월인지 확인
+def validate_month(value: str) -> bool:
+    try:
+        datetime.strptime(value, "%Y-%m")
+        return True
+    except ValueError:
+        return False

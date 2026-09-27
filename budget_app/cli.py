@@ -202,6 +202,24 @@ def create_parser() -> argparse.ArgumentParser:
         help="검색할 태그",
     )
 
+    summary_parser = subparsers.add_parser(
+        "summary",
+        help="월별 거래 요약을 조회합니다.",
+    )
+
+    summary_parser.add_argument(
+        "--month",
+        required=True,
+        help="조회할 월 (YYYY-MM)",
+    )
+
+    summary_parser.add_argument(
+        "--top",
+        type=int,
+        default=3,
+        help="카테고리별 지출 상위 개수 (기본값: 3)",
+    )
+
     category_parser = subparsers.add_parser(
         "category",
         help="카테고리를 관리합니다.",
@@ -227,6 +245,43 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+# 월별 거래 요약 명령을 처리
+def handle_summary(
+    transaction_service: TransactionService,
+    month: str,
+    top: int,
+) -> None:
+    try:
+        summary = transaction_service.get_monthly_summary(
+            month,
+            top,
+        )
+
+        if summary["transaction_count"] == 0:
+            print("[안내] 해당 월의 거래 데이터가 없습니다.")
+            return
+
+        print(f"총 수입: {summary['total_income']}원")
+        print(f"총 지출: {summary['total_expense']}원")
+        print(f"잔액: {summary['balance']}원")
+
+        print(f"지출 TOP {top}")
+
+        if not summary["top_categories"]:
+            print("- 지출 내역 없음")
+            return
+
+        for index, (category, amount) in enumerate(
+            summary["top_categories"],
+            start=1,
+        ):
+            print(f"{index}) {category} {amount}원")
+
+    except ValueError as error:
+        print(f"[오류] {error}")
+        print("[힌트] --month는 YYYY-MM 형식, --top은 1 이상의 정수로 입력하세요.")
 
 
 # 프로그램 실행에 필요한 저장소와 서비스를 생성
@@ -260,6 +315,13 @@ def main() -> None:
         handle_search(
             transaction_service,
             args,
+        )
+
+    elif args.command == "summary":
+        handle_summary(
+            transaction_service,
+            args.month,
+            args.top,
         )
 
     elif args.command == "category":
