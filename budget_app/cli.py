@@ -178,6 +178,12 @@ def main() -> None:
     if args.command == "add":
         handle_add(transaction_service)
 
+    elif args.command == "list":
+        handle_list(
+            transaction_service,
+            args.limit,
+        )
+
     elif args.command == "category":
         if args.category_command == "add":
             handle_category_add(category_service)

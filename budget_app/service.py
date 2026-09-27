@@ -115,7 +115,7 @@ class TransactionService:
 
         return transaction
 
-        # 최신 거래를 지정한 개수만큼 조회
+    # 최신 거래를 지정한 개수만큼 조회
     def get_transactions(self, limit: int = 10) -> list[Transaction]:
         if limit <= 0:
             raise ValueError("limit은 1 이상의 정수여야 합니다.")
