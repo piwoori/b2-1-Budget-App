@@ -131,3 +131,53 @@ class TransactionService:
         recent_transactions.reverse()
 
         return recent_transactions
+
+    # 조건에 맞는 거래를 검색
+    def search_transactions(
+        self,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        category: str | None = None,
+        transaction_type: str | None = None,
+        query: str | None = None,
+        tag: str | None = None,
+    ) -> list[Transaction]:
+
+        if from_date and not validate_date(from_date):
+            raise ValueError("--from 날짜 형식이 올바르지 않습니다.")
+
+        if to_date and not validate_date(to_date):
+            raise ValueError("--to 날짜 형식이 올바르지 않습니다.")
+
+        if transaction_type and not validate_type(transaction_type):
+            raise ValueError("--type은 income 또는 expense여야 합니다.")
+
+        if from_date and to_date and from_date > to_date:
+            raise ValueError("--from은 --to보다 늦을 수 없습니다.")
+
+        results: list[Transaction] = []
+
+        for transaction in self.transaction_repository.stream_all():
+            if from_date and transaction.date < from_date:
+                continue
+
+            if to_date and transaction.date > to_date:
+                continue
+
+            if category and transaction.category != category:
+                continue
+
+            if transaction_type and transaction.type != transaction_type:
+                continue
+
+            if query and query.lower() not in transaction.memo.lower():
+                continue
+
+            if tag and tag not in transaction.tags:
+                continue
+
+            results.append(transaction)
+
+        results.reverse()
+
+        return results

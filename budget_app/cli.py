@@ -69,6 +69,39 @@ def handle_list(
         print(f"[오류] {error}")
         print("[힌트] --limit에는 1 이상의 정수를 입력하세요.")
 
+# 거래 검색 명령을 처리
+def handle_search(
+    transaction_service: TransactionService,
+    args: argparse.Namespace,
+) -> None:
+    try:
+        transactions = transaction_service.search_transactions(
+            from_date=args.from_date,
+            to_date=args.to_date,
+            category=args.category,
+            transaction_type=args.transaction_type,
+            query=args.query,
+            tag=args.tag,
+        )
+
+        if not transactions:
+            print("[안내] 검색 조건에 맞는 거래가 없습니다.")
+            return
+
+        for transaction in transactions:
+            print(
+                f"{transaction.id} | "
+                f"{transaction.date} | "
+                f"{transaction.type} | "
+                f"{transaction.category} | "
+                f"{transaction.amount} | "
+                f"{transaction.memo}"
+            )
+
+    except ValueError as error:
+        print(f"[오류] {error}")
+        print("[힌트] 검색 옵션의 형식과 값을 확인하세요.")
+
 
 # 카테고리 추가 명령을 처리
 def handle_category_add(category_service: CategoryService) -> None:
@@ -130,6 +163,45 @@ def create_parser() -> argparse.ArgumentParser:
         help="조회할 거래 개수 (기본값: 10)",
     )
 
+    search_parser = subparsers.add_parser(
+        "search",
+        help="조건에 맞는 거래를 검색합니다.",
+    )
+
+    search_parser.add_argument(
+        "--from",
+        dest="from_date",
+        help="검색 시작 날짜 (YYYY-MM-DD)",
+    )
+
+    search_parser.add_argument(
+        "--to",
+        dest="to_date",
+        help="검색 종료 날짜 (YYYY-MM-DD)",
+    )
+
+    search_parser.add_argument(
+        "--category",
+        help="검색할 카테고리",
+    )
+
+    search_parser.add_argument(
+        "--type",
+        dest="transaction_type",
+        help="거래 타입 (income/expense)",
+    )
+
+    search_parser.add_argument(
+        "--q",
+        dest="query",
+        help="메모 검색 키워드",
+    )
+
+    search_parser.add_argument(
+        "--tag",
+        help="검색할 태그",
+    )
+
     category_parser = subparsers.add_parser(
         "category",
         help="카테고리를 관리합니다.",
@@ -182,6 +254,12 @@ def main() -> None:
         handle_list(
             transaction_service,
             args.limit,
+        )
+
+    elif args.command == "search":
+        handle_search(
+            transaction_service,
+            args,
         )
 
     elif args.command == "category":
