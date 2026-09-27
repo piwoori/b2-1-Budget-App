@@ -279,3 +279,77 @@ class TransactionService:
             "budget_usage": budget_usage,
             "budget_exceeded": budget_exceeded,
         }
+
+    # ID에 해당하는 거래를 조회
+    def get_transaction_by_id(
+        self,
+        transaction_id: str,
+    ) -> Transaction | None:
+        for transaction in self.transaction_repository.stream_all():
+            if transaction.id == transaction_id:
+                return transaction
+
+        return None
+
+    # 입력값을 검증한 뒤 기존 거래를 수정
+    def update_transaction(
+        self,
+        transaction_id: str,
+        date: str,
+        transaction_type: str,
+        category: str,
+        amount: str,
+        memo: str = "",
+        tags: list[str] | None = None,
+    ) -> Transaction:
+        existing_transaction = self.get_transaction_by_id(
+            transaction_id
+        )
+
+        if existing_transaction is None:
+            raise ValueError("해당 ID의 거래가 존재하지 않습니다.")
+
+        categories = list(
+            self.category_repository.stream_all()
+        )
+
+        if not validate_date(date):
+            raise ValueError("날짜 형식이 올바르지 않습니다.")
+
+        if not validate_type(transaction_type):
+            raise ValueError(
+                "거래 타입은 income 또는 expense여야 합니다."
+            )
+
+        if not validate_category(category, categories):
+            raise ValueError("등록되지 않은 카테고리입니다.")
+
+        if not validate_amount(amount):
+            raise ValueError(
+                "금액은 0보다 큰 정수여야 합니다."
+            )
+
+        updated_transaction = Transaction(
+            id=transaction_id,
+            type=transaction_type,
+            date=date,
+            amount=int(amount),
+            category=category,
+            memo=memo.strip(),
+            tags=tags or [],
+        )
+
+        self.transaction_repository.update(
+            updated_transaction
+        )
+
+        return updated_transaction
+
+    # ID에 해당하는 거래를 삭제
+    def delete_transaction(
+        self,
+        transaction_id: str,
+    ) -> bool:
+        return self.transaction_repository.delete(
+            transaction_id
+        )

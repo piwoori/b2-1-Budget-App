@@ -272,6 +272,28 @@ def create_parser() -> argparse.ArgumentParser:
         help="카테고리를 삭제합니다.",
     )
 
+    update_parser = subparsers.add_parser(
+        "update",
+        help="기존 거래를 수정합니다.",
+    )
+
+    update_parser.add_argument(
+        "--id",
+        required=True,
+        help="수정할 거래 ID",
+    )
+
+    delete_parser = subparsers.add_parser(
+        "delete",
+        help="기존 거래를 삭제합니다.",
+    )
+
+    delete_parser.add_argument(
+        "--id",
+        required=True,
+        help="삭제할 거래 ID",
+    )
+
     return parser
 
 
@@ -343,6 +365,95 @@ def handle_budget_set(
         print("[힌트] --month는 YYYY-MM 형식, --amount는 0보다 큰 정수로 입력하세요.")
 
 
+# 거래 수정 명령을 처리
+def handle_update(
+    transaction_service: TransactionService,
+    transaction_id: str,
+) -> None:
+    transaction = transaction_service.get_transaction_by_id(
+        transaction_id
+    )
+
+    if transaction is None:
+        print("[오류] 해당 ID의 거래가 존재하지 않습니다.")
+        print("[힌트] list 명령으로 거래 ID를 확인하세요.")
+        return
+
+    print("[거래 수정]")
+    print("기존 값을 유지하려면 엔터를 입력하세요.")
+
+    date = input(
+        f"날짜({transaction.date}): "
+    ).strip() or transaction.date
+
+    transaction_type = input(
+        f"타입({transaction.type}): "
+    ).strip() or transaction.type
+
+    category = input(
+        f"카테고리({transaction.category}): "
+    ).strip() or transaction.category
+
+    amount = input(
+        f"금액({transaction.amount}): "
+    ).strip() or str(transaction.amount)
+
+    memo = input(
+        f"메모({transaction.memo}): "
+    ).strip() or transaction.memo
+
+    current_tags = ",".join(transaction.tags)
+
+    tags_input = input(
+        f"태그({current_tags}): "
+    ).strip()
+
+    tags = (
+        [
+            tag.strip()
+            for tag in tags_input.split(",")
+            if tag.strip()
+        ]
+        if tags_input
+        else transaction.tags
+    )
+
+    try:
+        updated_transaction = (
+            transaction_service.update_transaction(
+                transaction_id=transaction_id,
+                date=date,
+                transaction_type=transaction_type,
+                category=category,
+                amount=amount,
+                memo=memo,
+                tags=tags,
+            )
+        )
+
+        print(
+            f"[수정 완료] id={updated_transaction.id}"
+        )
+
+    except ValueError as error:
+        print(f"[오류] {error}")
+        print("[힌트] 입력값과 카테고리를 확인하세요.")
+
+
+# 거래 삭제 명령을 처리
+def handle_delete(
+    transaction_service: TransactionService,
+    transaction_id: str,
+) -> None:
+    if transaction_service.delete_transaction(
+        transaction_id
+    ):
+        print(f"[삭제 완료] id={transaction_id}")
+    else:
+        print("[오류] 해당 ID의 거래가 존재하지 않습니다.")
+        print("[힌트] list 명령으로 거래 ID를 확인하세요.")
+
+
 # 프로그램 실행에 필요한 저장소와 서비스를 생성
 def main() -> None:
     parser = create_parser()
@@ -380,6 +491,18 @@ def main() -> None:
         handle_search(
             transaction_service,
             args,
+        )
+
+    elif args.command == "update":
+        handle_update(
+            transaction_service,
+            args.id,
+        )
+
+    elif args.command == "delete":
+        handle_delete(
+            transaction_service,
+            args.id,
         )
 
     elif args.command == "summary":

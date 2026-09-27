@@ -37,6 +37,56 @@ class TransactionRepository:
 
                 yield Transaction.from_dict(data)
 
+    # 전체 거래를 임시 파일에 저장한 뒤 기존 파일을 안전하게 교체
+    def rewrite(self, transactions: list[Transaction]) -> None:
+        temp_path = self.file_path.with_suffix(".tmp")
+
+        with temp_path.open("w", encoding="utf-8") as file:
+            for transaction in transactions:
+                json_line = json.dumps(
+                    transaction.to_dict(),
+                    ensure_ascii=False,
+                )
+                file.write(json_line + "\n")
+
+        temp_path.replace(self.file_path)
+
+    # ID에 해당하는 거래를 수정
+    def update(self, updated_transaction: Transaction) -> bool:
+        transactions: list[Transaction] = []
+        found = False
+
+        for transaction in self.stream_all():
+            if transaction.id == updated_transaction.id:
+                transactions.append(updated_transaction)
+                found = True
+            else:
+                transactions.append(transaction)
+
+        if not found:
+            return False
+
+        self.rewrite(transactions)
+        return True
+
+    # ID에 해당하는 거래를 삭제
+    def delete(self, transaction_id: str) -> bool:
+        transactions: list[Transaction] = []
+        found = False
+
+        for transaction in self.stream_all():
+            if transaction.id == transaction_id:
+                found = True
+                continue
+
+            transactions.append(transaction)
+
+        if not found:
+            return False
+
+        self.rewrite(transactions)
+        return True
+
 
 class CategoryRepository:
     def __init__(self, file_path: str = "data/categories.jsonl") -> None:
