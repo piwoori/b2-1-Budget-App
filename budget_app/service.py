@@ -353,3 +353,82 @@ class TransactionService:
         return self.transaction_repository.delete(
             transaction_id
         )
+
+        # CSV의 모든 거래를 검증한 뒤 문제가 없으면 한 번에 저장
+    def import_transactions(
+        self,
+        input_path: str,
+    ) -> int:
+        if not input_path.strip():
+            raise ValueError("입력 파일 경로를 입력해야 합니다.")
+
+        categories = list(
+            self.category_repository.stream_all()
+        )
+
+        existing_ids = {
+            transaction.id
+            for transaction
+            in self.transaction_repository.stream_all()
+        }
+
+        imported_transactions: list[Transaction] = []
+
+        for transaction in (
+            self.transaction_repository.stream_csv(input_path)
+        ):
+            if transaction.id in existing_ids:
+                raise ValueError(
+                    f"이미 존재하는 거래 ID입니다: "
+                    f"{transaction.id}"
+                )
+
+            if transaction.id in {
+                item.id for item in imported_transactions
+            }:
+                raise ValueError(
+                    f"CSV 내부에 중복된 거래 ID가 있습니다: "
+                    f"{transaction.id}"
+                )
+
+            if not validate_date(transaction.date):
+                raise ValueError(
+                    f"날짜 형식이 올바르지 않습니다: "
+                    f"{transaction.date}"
+                )
+
+            if not validate_type(transaction.type):
+                raise ValueError(
+                    f"거래 타입이 올바르지 않습니다: "
+                    f"{transaction.type}"
+                )
+
+            if transaction.category not in categories:
+                raise ValueError(
+                    f"등록되지 않은 카테고리입니다: "
+                    f"{transaction.category}"
+                )
+
+            if transaction.amount <= 0:
+                raise ValueError(
+                    "금액은 0보다 큰 정수여야 합니다."
+                )
+
+            imported_transactions.append(transaction)
+
+        for transaction in imported_transactions:
+            self.transaction_repository.save(transaction)
+
+        return len(imported_transactions)
+
+    # 저장된 거래를 CSV 파일로 내보내기
+    def export_transactions(
+        self,
+        output_path: str,
+    ) -> int:
+        if not output_path.strip():
+            raise ValueError("출력 파일 경로를 입력해야 합니다.")
+
+        return self.transaction_repository.export_csv(
+            output_path
+        )

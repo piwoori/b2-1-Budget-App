@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 from typing import Generator
@@ -86,6 +87,84 @@ class TransactionRepository:
 
         self.rewrite(transactions)
         return True
+
+    # 저장된 거래를 CSV 파일로 내보내기
+    def export_csv(self, output_path: str) -> int:
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        count = 0
+
+        with path.open(
+            "w",
+            encoding="utf-8",
+            newline="",
+        ) as file:
+            writer = csv.DictWriter(
+                file,
+                fieldnames=[
+                    "id",
+                    "type",
+                    "date",
+                    "amount",
+                    "category",
+                    "memo",
+                    "tags",
+                ],
+            )
+
+            writer.writeheader()
+
+            for transaction in self.stream_all():
+                writer.writerow({
+                    "id": transaction.id,
+                    "type": transaction.type,
+                    "date": transaction.date,
+                    "amount": transaction.amount,
+                    "category": transaction.category,
+                    "memo": transaction.memo,
+                    "tags": ",".join(transaction.tags),
+                })
+
+                count += 1
+
+        return count
+
+    # CSV 파일의 거래를 읽어 하나씩 반환
+    def stream_csv(
+        self,
+        input_path: str,
+    ) -> Generator[Transaction, None, None]:
+        path = Path(input_path)
+
+        if not path.exists():
+            raise FileNotFoundError(
+                f"파일을 찾을 수 없습니다: {input_path}"
+            )
+
+        with path.open(
+            "r",
+            encoding="utf-8",
+            newline="",
+        ) as file:
+            reader = csv.DictReader(file)
+
+            for row in reader:
+                tags = [
+                    tag.strip()
+                    for tag in row["tags"].split(",")
+                    if tag.strip()
+                ]
+
+                yield Transaction(
+                    id=row["id"],
+                    type=row["type"],
+                    date=row["date"],
+                    amount=int(row["amount"]),
+                    category=row["category"],
+                    memo=row["memo"],
+                    tags=tags,
+                )
 
 
 class CategoryRepository:

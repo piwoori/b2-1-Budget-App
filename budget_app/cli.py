@@ -294,6 +294,28 @@ def create_parser() -> argparse.ArgumentParser:
         help="삭제할 거래 ID",
     )
 
+    export_parser = subparsers.add_parser(
+        "export",
+        help="거래 데이터를 CSV 파일로 내보냅니다.",
+    )
+
+    export_parser.add_argument(
+        "--output",
+        required=True,
+        help="저장할 CSV 파일 경로",
+    )
+
+    import_parser = subparsers.add_parser(
+        "import",
+        help="CSV 파일의 거래 데이터를 가져옵니다.",
+    )
+
+    import_parser.add_argument(
+        "--input",
+        required=True,
+        help="가져올 CSV 파일 경로",
+    )
+
     return parser
 
 
@@ -454,6 +476,53 @@ def handle_delete(
         print("[힌트] list 명령으로 거래 ID를 확인하세요.")
 
 
+# 거래 데이터를 CSV 파일로 내보내기
+def handle_export(
+    transaction_service: TransactionService,
+    output_path: str,
+) -> None:
+    try:
+        count = transaction_service.export_transactions(
+            output_path
+        )
+
+        print(
+            f"[내보내기 완료] "
+            f"{count}건 -> {output_path}"
+        )
+
+    except (ValueError, OSError) as error:
+        print(f"[오류] {error}")
+        print("[힌트] 출력 파일 경로를 확인하세요.")
+
+
+# CSV 파일의 거래 데이터를 가져오기
+def handle_import(
+    transaction_service: TransactionService,
+    input_path: str,
+) -> None:
+    try:
+        count = transaction_service.import_transactions(
+            input_path
+        )
+
+        print(
+            f"[가져오기 완료] "
+            f"{count}건을 저장했습니다."
+        )
+
+    except (
+        ValueError,
+        FileNotFoundError,
+        KeyError,
+        OSError,
+    ) as error:
+        print(f"[오류] {error}")
+        print(
+            "[힌트] CSV 파일 경로와 형식을 확인하세요."
+        )
+
+
 # 프로그램 실행에 필요한 저장소와 서비스를 생성
 def main() -> None:
     parser = create_parser()
@@ -534,6 +603,18 @@ def main() -> None:
 
         else:
             parser.print_help()
+
+    elif args.command == "export":
+        handle_export(
+            transaction_service,
+            args.output,
+        )
+
+    elif args.command == "import":
+        handle_import(
+            transaction_service,
+            args.input,
+        )
 
     else:
         parser.print_help()
