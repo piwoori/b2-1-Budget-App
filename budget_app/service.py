@@ -114,3 +114,20 @@ class TransactionService:
         self.transaction_repository.save(transaction)
 
         return transaction
+
+        # 최신 거래를 지정한 개수만큼 조회
+    def get_transactions(self, limit: int = 10) -> list[Transaction]:
+        if limit <= 0:
+            raise ValueError("limit은 1 이상의 정수여야 합니다.")
+
+        recent_transactions: list[Transaction] = []
+
+        for transaction in self.transaction_repository.stream_all():
+            recent_transactions.append(transaction)
+
+            if len(recent_transactions) > limit:
+                recent_transactions.pop(0)
+
+        recent_transactions.reverse()
+
+        return recent_transactions

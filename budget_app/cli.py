@@ -43,6 +43,32 @@ def handle_add(transaction_service: TransactionService) -> None:
     except ValueError as error:
         print(f"[오류] {error}")
 
+# 거래 목록 조회 명령을 처리
+def handle_list(
+    transaction_service: TransactionService,
+    limit: int,
+) -> None:
+    try:
+        transactions = transaction_service.get_transactions(limit)
+
+        if not transactions:
+            print("[안내] 저장된 거래가 없습니다.")
+            return
+
+        for transaction in transactions:
+            print(
+                f"{transaction.id} | "
+                f"{transaction.date} | "
+                f"{transaction.type} | "
+                f"{transaction.category} | "
+                f"{transaction.amount} | "
+                f"{transaction.memo}"
+            )
+
+    except ValueError as error:
+        print(f"[오류] {error}")
+        print("[힌트] --limit에는 1 이상의 정수를 입력하세요.")
+
 
 # 카테고리 추가 명령을 처리
 def handle_category_add(category_service: CategoryService) -> None:
@@ -90,6 +116,18 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "add",
         help="새로운 거래를 추가합니다.",
+    )
+
+    list_parser = subparsers.add_parser(
+        "list",
+        help="거래 목록을 조회합니다.",
+    )
+
+    list_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="조회할 거래 개수 (기본값: 10)",
     )
 
     category_parser = subparsers.add_parser(
