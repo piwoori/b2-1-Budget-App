@@ -1,5 +1,6 @@
 from budget_app.models import Transaction
 from budget_app.repository import (
+    BudgetRepository,
     CategoryRepository,
     TransactionRepository,
 )
@@ -10,6 +11,39 @@ from budget_app.validators import (
     validate_month,
     validate_type,
 )
+
+
+class BudgetService:
+    # 예산 저장소를 전달받아 초기화
+    def __init__(
+        self,
+        budget_repository: BudgetRepository,
+    ) -> None:
+        self.budget_repository = budget_repository
+
+    # 월과 금액을 검증한 뒤 예산을 저장
+    def set_budget(
+        self,
+        month: str,
+        amount: str,
+    ) -> None:
+        if not validate_month(month):
+            raise ValueError("월 형식이 올바르지 않습니다.")
+
+        if not validate_amount(amount):
+            raise ValueError("예산은 0보다 큰 정수여야 합니다.")
+
+        self.budget_repository.set(
+            month,
+            int(amount),
+        )
+
+    # 특정 월에 설정된 예산을 조회
+    def get_budget(self, month: str) -> int | None:
+        if not validate_month(month):
+            raise ValueError("월 형식이 올바르지 않습니다.")
+
+        return self.budget_repository.get(month)
 
 
 class CategoryService:
@@ -57,13 +91,16 @@ class CategoryService:
 
 
 class TransactionService:
+    # 거래, 카테고리, 예산 저장소를 전달받아 초기화
     def __init__(
         self,
         transaction_repository: TransactionRepository,
         category_repository: CategoryRepository,
+        budget_repository: BudgetRepository,
     ) -> None:
         self.transaction_repository = transaction_repository
         self.category_repository = category_repository
+        self.budget_repository = budget_repository
 
     # 다음 거래 ID를 생성
     def generate_id(self) -> str:
@@ -223,10 +260,22 @@ class TransactionService:
             reverse=True,
         )[:top]
 
+        budget = self.budget_repository.get(month)
+
+        budget_usage = None
+        budget_exceeded = False
+
+        if budget is not None:
+            budget_usage = (total_expense / budget) * 100
+            budget_exceeded = total_expense > budget
+
         return {
             "transaction_count": transaction_count,
             "total_income": total_income,
             "total_expense": total_expense,
             "balance": total_income - total_expense,
             "top_categories": top_categories,
+            "budget": budget,
+            "budget_usage": budget_usage,
+            "budget_exceeded": budget_exceeded,
         }

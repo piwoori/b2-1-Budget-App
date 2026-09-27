@@ -1,10 +1,12 @@
 import argparse
 
 from budget_app.repository import (
+    BudgetRepository,
     CategoryRepository,
     TransactionRepository,
 )
 from budget_app.service import (
+    BudgetService,
     CategoryService,
     TransactionService,
 )
@@ -220,6 +222,32 @@ def create_parser() -> argparse.ArgumentParser:
         help="카테고리별 지출 상위 개수 (기본값: 3)",
     )
 
+    budget_parser = subparsers.add_parser(
+        "budget",
+        help="월별 예산을 관리합니다.",
+    )
+
+    budget_subparsers = budget_parser.add_subparsers(
+        dest="budget_command",
+    )
+
+    budget_set_parser = budget_subparsers.add_parser(
+        "set",
+        help="월별 예산을 설정합니다.",
+    )
+
+    budget_set_parser.add_argument(
+        "--month",
+        required=True,
+        help="예산을 설정할 월 (YYYY-MM)",
+    )
+
+    budget_set_parser.add_argument(
+        "--amount",
+        required=True,
+        help="예산 금액",
+    )
+
     category_parser = subparsers.add_parser(
         "category",
         help="카테고리를 관리합니다.",
@@ -267,6 +295,15 @@ def handle_summary(
         print(f"총 지출: {summary['total_expense']}원")
         print(f"잔액: {summary['balance']}원")
 
+        if summary["budget"] is not None:
+            print(f"예산: {summary['budget']}원")
+            print(f"예산 사용률: {summary['budget_usage']:.1f}%")
+
+            if summary["budget_exceeded"]:
+                print("[경고] 설정한 예산을 초과했습니다.")
+        else:
+            print("예산: 설정되지 않음")
+
         print(f"지출 TOP {top}")
 
         if not summary["top_categories"]:
@@ -284,17 +321,45 @@ def handle_summary(
         print("[힌트] --month는 YYYY-MM 형식, --top은 1 이상의 정수로 입력하세요.")
 
 
+# 월별 예산 설정 명령을 처리
+def handle_budget_set(
+    budget_service: BudgetService,
+    month: str,
+    amount: str,
+) -> None:
+    try:
+        budget_service.set_budget(
+            month,
+            amount,
+        )
+
+        print(
+            f"[저장 완료] "
+            f"{month} 예산 = {int(amount)}원"
+        )
+
+    except ValueError as error:
+        print(f"[오류] {error}")
+        print("[힌트] --month는 YYYY-MM 형식, --amount는 0보다 큰 정수로 입력하세요.")
+
+
 # 프로그램 실행에 필요한 저장소와 서비스를 생성
 def main() -> None:
     parser = create_parser()
     args = parser.parse_args()
 
+    budget_repository = BudgetRepository()
     transaction_repository = TransactionRepository()
     category_repository = CategoryRepository()
+
+    budget_service = BudgetService(
+        budget_repository,
+    )
 
     transaction_service = TransactionService(
         transaction_repository,
         category_repository,
+        budget_repository,
     )
 
     category_service = CategoryService(
@@ -323,6 +388,16 @@ def main() -> None:
             args.month,
             args.top,
         )
+
+    elif args.command == "budget":
+        if args.budget_command == "set":
+            handle_budget_set(
+                budget_service,
+                args.month,
+                args.amount,
+            )
+        else:
+            parser.print_help()
 
     elif args.command == "category":
         if args.category_command == "add":
