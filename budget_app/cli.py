@@ -12,8 +12,18 @@ from budget_app.service import (
 )
 
 
+# 오류 메시지와 해결 힌트를 출력
+def print_error(
+    error: Exception,
+    hint: str,
+) -> None:
+    print(f"[오류] {error}")
+    print(f"[힌트] {hint}")
+
 # 거래 추가 명령을 처리
-def handle_add(transaction_service: TransactionService) -> None:
+def handle_add(
+    transaction_service: TransactionService,
+) -> int:
     print("[거래 추가]")
 
     date = input("날짜(YYYY-MM-DD): ").strip()
@@ -21,8 +31,9 @@ def handle_add(transaction_service: TransactionService) -> None:
     category = input("카테고리: ").strip()
     amount = input("금액(양수): ").strip()
     memo = input("메모(선택): ").strip()
-
-    tags_input = input("태그(쉼표로 구분, 없으면 엔터): ").strip()
+    tags_input = input(
+        "태그(쉼표로 구분, 없으면 엔터): "
+    ).strip()
 
     tags = [
         tag.strip()
@@ -41,21 +52,26 @@ def handle_add(transaction_service: TransactionService) -> None:
         )
 
         print(f"[저장 완료] id={transaction.id}")
+        return 0
 
     except ValueError as error:
-        print(f"[오류] {error}")
+        print_error(
+            error,
+            "날짜, 타입, 카테고리, 금액을 확인하세요.",
+        )
+        return 1
 
 # 거래 목록 조회 명령을 처리
 def handle_list(
     transaction_service: TransactionService,
     limit: int,
-) -> None:
+) -> int:
     try:
         transactions = transaction_service.get_transactions(limit)
 
         if not transactions:
             print("[안내] 저장된 거래가 없습니다.")
-            return
+            return 0
 
         for transaction in transactions:
             print(
@@ -67,15 +83,20 @@ def handle_list(
                 f"{transaction.memo}"
             )
 
+        return 0
+
     except ValueError as error:
-        print(f"[오류] {error}")
-        print("[힌트] --limit에는 1 이상의 정수를 입력하세요.")
+        print_error(
+            error,
+            "--limit에는 1 이상의 정수를 입력하세요.",
+        )
+        return 1
 
 # 거래 검색 명령을 처리
 def handle_search(
     transaction_service: TransactionService,
     args: argparse.Namespace,
-) -> None:
+) -> int:
     try:
         transactions = transaction_service.search_transactions(
             from_date=args.from_date,
@@ -88,7 +109,7 @@ def handle_search(
 
         if not transactions:
             print("[안내] 검색 조건에 맞는 거래가 없습니다.")
-            return
+            return 0
 
         for transaction in transactions:
             print(
@@ -99,45 +120,64 @@ def handle_search(
                 f"{transaction.amount} | "
                 f"{transaction.memo}"
             )
+        return 0
 
     except ValueError as error:
-        print(f"[오류] {error}")
-        print("[힌트] 검색 옵션의 형식과 값을 확인하세요.")
+        print_error(
+            error,
+            "검색 옵션의 형식과 값을 확인하세요.",
+        )
+        return 1
 
 
 # 카테고리 추가 명령을 처리
-def handle_category_add(category_service: CategoryService) -> None:
+def handle_category_add(
+    category_service: CategoryService,
+) -> int:
     category = input("카테고리명: ").strip()
 
     if category_service.add_category(category):
         print(f"[저장 완료] category={category}")
-    else:
-        print("[오류] 카테고리를 추가할 수 없습니다.")
-        print("[힌트] 빈 이름이거나 이미 존재하는 카테고리인지 확인하세요.")
+        return 0
+
+    print_error(
+        ValueError("카테고리를 추가할 수 없습니다."),
+        "빈 이름이거나 이미 존재하는 카테고리인지 확인하세요.",
+    )
+    return 1
 
 
 # 카테고리 목록 조회 명령을 처리
-def handle_category_list(category_service: CategoryService) -> None:
+def handle_category_list(
+    category_service: CategoryService,
+) -> int:
     categories = category_service.get_categories()
 
     if not categories:
         print("[안내] 등록된 카테고리가 없습니다.")
-        return
+        return 0
 
     for category in categories:
         print(f"- {category}")
 
+    return 0
+
 
 # 카테고리 삭제 명령을 처리
-def handle_category_remove(category_service: CategoryService) -> None:
+def handle_category_remove(
+    category_service: CategoryService,
+) -> int:
     category = input("삭제할 카테고리명: ").strip()
 
     if category_service.remove_category(category):
         print(f"[삭제 완료] category={category}")
-    else:
-        print("[오류] 카테고리를 삭제할 수 없습니다.")
-        print("[힌트] 존재 여부 또는 해당 카테고리를 사용하는 거래가 있는지 확인하세요.")
+        return 0
 
+    print_error(
+        ValueError("카테고리를 삭제할 수 없습니다."),
+        "존재 여부 또는 해당 카테고리를 사용하는 거래가 있는지 확인하세요.",
+    )
+    return 1
 
 # CLI 명령어와 옵션을 설정
 def create_parser() -> argparse.ArgumentParser:
@@ -324,7 +364,7 @@ def handle_summary(
     transaction_service: TransactionService,
     month: str,
     top: int,
-) -> None:
+) -> int:
     try:
         summary = transaction_service.get_monthly_summary(
             month,
@@ -333,7 +373,7 @@ def handle_summary(
 
         if summary["transaction_count"] == 0:
             print("[안내] 해당 월의 거래 데이터가 없습니다.")
-            return
+            return 0
 
         print(f"총 수입: {summary['total_income']}원")
         print(f"총 지출: {summary['total_expense']}원")
@@ -352,7 +392,7 @@ def handle_summary(
 
         if not summary["top_categories"]:
             print("- 지출 내역 없음")
-            return
+            return 0 
 
         for index, (category, amount) in enumerate(
             summary["top_categories"],
@@ -360,9 +400,14 @@ def handle_summary(
         ):
             print(f"{index}) {category} {amount}원")
 
+        return 0
+
     except ValueError as error:
-        print(f"[오류] {error}")
-        print("[힌트] --month는 YYYY-MM 형식, --top은 1 이상의 정수로 입력하세요.")
+        print_error(
+            error,
+            "--month는 YYYY-MM 형식, --top은 1 이상의 정수로 입력하세요.",
+        )
+        return 1
 
 
 # 월별 예산 설정 명령을 처리
@@ -370,7 +415,7 @@ def handle_budget_set(
     budget_service: BudgetService,
     month: str,
     amount: str,
-) -> None:
+) -> int:
     try:
         budget_service.set_budget(
             month,
@@ -381,25 +426,31 @@ def handle_budget_set(
             f"[저장 완료] "
             f"{month} 예산 = {int(amount)}원"
         )
+        return 0
 
     except ValueError as error:
-        print(f"[오류] {error}")
-        print("[힌트] --month는 YYYY-MM 형식, --amount는 0보다 큰 정수로 입력하세요.")
-
+        print_error(
+            error,
+            "--month는 YYYY-MM 형식, --amount는 0보다 큰 정수로 입력하세요.",
+        )
+        return 1
+    
 
 # 거래 수정 명령을 처리
 def handle_update(
     transaction_service: TransactionService,
     transaction_id: str,
-) -> None:
+) -> int:
     transaction = transaction_service.get_transaction_by_id(
         transaction_id
     )
 
     if transaction is None:
-        print("[오류] 해당 ID의 거래가 존재하지 않습니다.")
-        print("[힌트] list 명령으로 거래 ID를 확인하세요.")
-        return
+        print_error(
+            ValueError("해당 ID의 거래가 존재하지 않습니다."),
+            "list 명령으로 거래 ID를 확인하세요.",
+        )
+        return 1
 
     print("[거래 수정]")
     print("기존 값을 유지하려면 엔터를 입력하세요.")
@@ -456,31 +507,39 @@ def handle_update(
         print(
             f"[수정 완료] id={updated_transaction.id}"
         )
+        return 0
 
     except ValueError as error:
-        print(f"[오류] {error}")
-        print("[힌트] 입력값과 카테고리를 확인하세요.")
+        print_error(
+            error,
+            "입력값과 카테고리를 확인하세요.",
+        )
+        return 1
 
 
 # 거래 삭제 명령을 처리
 def handle_delete(
     transaction_service: TransactionService,
     transaction_id: str,
-) -> None:
+) -> int:
     if transaction_service.delete_transaction(
         transaction_id
     ):
         print(f"[삭제 완료] id={transaction_id}")
-    else:
-        print("[오류] 해당 ID의 거래가 존재하지 않습니다.")
-        print("[힌트] list 명령으로 거래 ID를 확인하세요.")
+        return 0
+
+    print_error(
+        ValueError("해당 ID의 거래가 존재하지 않습니다."),
+        "list 명령으로 거래 ID를 확인하세요.",
+    )
+    return 1
 
 
 # 거래 데이터를 CSV 파일로 내보내기
 def handle_export(
     transaction_service: TransactionService,
     output_path: str,
-) -> None:
+) -> int:
     try:
         count = transaction_service.export_transactions(
             output_path
@@ -490,17 +549,21 @@ def handle_export(
             f"[내보내기 완료] "
             f"{count}건 -> {output_path}"
         )
+        return 0
 
     except (ValueError, OSError) as error:
-        print(f"[오류] {error}")
-        print("[힌트] 출력 파일 경로를 확인하세요.")
+        print_error(
+            error,
+            "출력 파일 경로를 확인하세요.",
+        )
+        return 1
 
 
 # CSV 파일의 거래 데이터를 가져오기
 def handle_import(
     transaction_service: TransactionService,
     input_path: str,
-) -> None:
+) -> int:
     try:
         count = transaction_service.import_transactions(
             input_path
@@ -510,6 +573,7 @@ def handle_import(
             f"[가져오기 완료] "
             f"{count}건을 저장했습니다."
         )
+        return 0
 
     except (
         ValueError,
@@ -517,14 +581,15 @@ def handle_import(
         KeyError,
         OSError,
     ) as error:
-        print(f"[오류] {error}")
-        print(
-            "[힌트] CSV 파일 경로와 형식을 확인하세요."
+        print_error(
+            error,
+            "CSV 파일 경로와 형식을 확인하세요.",
         )
+        return 1
 
 
-# 프로그램 실행에 필요한 저장소와 서비스를 생성
-def main() -> None:
+# CLI 명령을 실행하고 종료 코드를 반환
+def main() -> int:
     parser = create_parser()
     args = parser.parse_args()
 
@@ -548,34 +613,34 @@ def main() -> None:
     )
 
     if args.command == "add":
-        handle_add(transaction_service)
+        return handle_add(transaction_service)
 
     elif args.command == "list":
-        handle_list(
+        return handle_list(
             transaction_service,
             args.limit,
         )
 
     elif args.command == "search":
-        handle_search(
+        return handle_search(
             transaction_service,
             args,
         )
 
     elif args.command == "update":
-        handle_update(
+        return handle_update(
             transaction_service,
             args.id,
         )
 
     elif args.command == "delete":
-        handle_delete(
+        return handle_delete(
             transaction_service,
             args.id,
         )
 
     elif args.command == "summary":
-        handle_summary(
+        return handle_summary(
             transaction_service,
             args.month,
             args.top,
@@ -583,38 +648,41 @@ def main() -> None:
 
     elif args.command == "budget":
         if args.budget_command == "set":
-            handle_budget_set(
+            return handle_budget_set(
                 budget_service,
                 args.month,
                 args.amount,
             )
         else:
             parser.print_help()
+            return 0
 
     elif args.command == "category":
         if args.category_command == "add":
-            handle_category_add(category_service)
+            return handle_category_add(category_service)
 
         elif args.category_command == "list":
-            handle_category_list(category_service)
+            return handle_category_list(category_service)
 
         elif args.category_command == "remove":
-            handle_category_remove(category_service)
+            return handle_category_remove(category_service)
 
         else:
-            parser.print_help()
+            return parser.print_help()
 
     elif args.command == "export":
-        handle_export(
+        return handle_export(
             transaction_service,
             args.output,
         )
 
     elif args.command == "import":
-        handle_import(
+        return handle_import(
             transaction_service,
             args.input,
         )
 
     else:
-        parser.print_help()
+        return parser.print_help()
+
+    return 0

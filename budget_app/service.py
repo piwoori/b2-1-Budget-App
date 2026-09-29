@@ -1,3 +1,4 @@
+from budget_app.decorators import measure_time
 from budget_app.models import Transaction
 from budget_app.repository import (
     BudgetRepository,
@@ -221,6 +222,7 @@ class TransactionService:
         return results
 
     # 특정 월의 수입, 지출, 잔액과 카테고리별 지출을 요약
+    @measure_time
     def get_monthly_summary(
         self,
         month: str,
