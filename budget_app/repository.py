@@ -38,7 +38,7 @@ class TransactionRepository:
 
                 yield Transaction.from_dict(data)
 
-        # 저장된 거래를 최신순으로 하나씩 반환
+    # 저장된 거래를 최신순으로 하나씩 반환
     def stream_all_reverse(
         self,
     ) -> Generator[Transaction, None, None]:
