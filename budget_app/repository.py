@@ -38,6 +38,36 @@ class TransactionRepository:
 
                 yield Transaction.from_dict(data)
 
+        # 저장된 거래를 최신순으로 하나씩 반환
+    def stream_all_reverse(
+        self,
+    ) -> Generator[Transaction, None, None]:
+        with self.file_path.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            file.seek(0, 2)
+            position = file.tell()
+            line = ""
+
+            while position > 0:
+                position -= 1
+                file.seek(position)
+
+                character = file.read(1)
+
+                if character == "\n":
+                    if line:
+                        data = json.loads(line)
+                        yield Transaction.from_dict(data)
+                        line = ""
+                else:
+                    line = character + line
+
+            if line:
+                data = json.loads(line)
+                yield Transaction.from_dict(data)
+
     # 전체 거래를 임시 파일에 저장한 뒤 기존 파일을 안전하게 교체
     def rewrite(self, transactions: list[Transaction]) -> None:
         temp_path = self.file_path.with_suffix(".tmp")
@@ -88,8 +118,12 @@ class TransactionRepository:
         self.rewrite(transactions)
         return True
 
-    # 저장된 거래를 CSV 파일로 내보내기
-    def export_csv(self, output_path: str) -> int:
+        # 전달받은 거래를 CSV 파일로 내보내기
+    def export_csv(
+        self,
+        output_path: str,
+        transactions: list[Transaction],
+    ) -> int:
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -103,11 +137,10 @@ class TransactionRepository:
             writer = csv.DictWriter(
                 file,
                 fieldnames=[
-                    "id",
-                    "type",
                     "date",
-                    "amount",
+                    "type",
                     "category",
+                    "amount",
                     "memo",
                     "tags",
                 ],
@@ -115,26 +148,24 @@ class TransactionRepository:
 
             writer.writeheader()
 
-            for transaction in self.stream_all():
+            for transaction in transactions:
                 writer.writerow({
-                    "id": transaction.id,
-                    "type": transaction.type,
                     "date": transaction.date,
-                    "amount": transaction.amount,
+                    "type": transaction.type,
                     "category": transaction.category,
+                    "amount": transaction.amount,
                     "memo": transaction.memo,
                     "tags": ",".join(transaction.tags),
                 })
-
                 count += 1
 
         return count
 
-    # CSV 파일의 거래를 읽어 하나씩 반환
+        # CSV 파일의 거래 데이터를 하나씩 읽어 반환
     def stream_csv(
         self,
         input_path: str,
-    ) -> Generator[Transaction, None, None]:
+    ) -> Generator[dict, None, None]:
         path = Path(input_path)
 
         if not path.exists():
@@ -149,22 +180,25 @@ class TransactionRepository:
         ) as file:
             reader = csv.DictReader(file)
 
-            for row in reader:
-                tags = [
-                    tag.strip()
-                    for tag in row["tags"].split(",")
-                    if tag.strip()
-                ]
+            required_fields = {
+                "date",
+                "type",
+                "category",
+                "amount",
+                "memo",
+                "tags",
+            }
 
-                yield Transaction(
-                    id=row["id"],
-                    type=row["type"],
-                    date=row["date"],
-                    amount=int(row["amount"]),
-                    category=row["category"],
-                    memo=row["memo"],
-                    tags=tags,
+            if (
+                reader.fieldnames is None
+                or not required_fields.issubset(reader.fieldnames)
+            ):
+                raise ValueError(
+                    "CSV 헤더 형식이 올바르지 않습니다."
                 )
+
+            for row in reader:
+                yield row
 
 
 class CategoryRepository:

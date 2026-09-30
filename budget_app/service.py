@@ -154,22 +154,27 @@ class TransactionService:
 
         return transaction
 
-    # 최신 거래를 지정한 개수만큼 조회
-    def get_transactions(self, limit: int = 10) -> list[Transaction]:
+    # 최신 거래를 지정한 개수만큼 스트리밍하여 반환
+    def get_transactions(
+        self,
+        limit: int = 10,
+    ) -> list[Transaction]:
         if limit <= 0:
-            raise ValueError("limit은 1 이상의 정수여야 합니다.")
+            raise ValueError(
+                "limit은 1 이상의 정수여야 합니다."
+            )
 
-        recent_transactions: list[Transaction] = []
+        transactions: list[Transaction] = []
 
-        for transaction in self.transaction_repository.stream_all():
-            recent_transactions.append(transaction)
+        for transaction in (
+            self.transaction_repository.stream_all_reverse()
+        ):
+            transactions.append(transaction)
 
-            if len(recent_transactions) > limit:
-                recent_transactions.pop(0)
+            if len(transactions) >= limit:
+                break
 
-        recent_transactions.reverse()
-
-        return recent_transactions
+        return transactions
 
     # 조건에 맞는 거래를 검색
     def search_transactions(
@@ -194,32 +199,54 @@ class TransactionService:
         if from_date and to_date and from_date > to_date:
             raise ValueError("--from은 --to보다 늦을 수 없습니다.")
 
-        results: list[Transaction] = []
+        transactions: list[Transaction] = []
 
-        for transaction in self.transaction_repository.stream_all():
-            if from_date and transaction.date < from_date:
+        for transaction in (
+            self.transaction_repository.stream_all_reverse()
+        ):
+            # 시작 날짜보다 이전 거래는 제외
+            if (
+                from_date
+                and transaction.date < from_date
+            ):
                 continue
 
-            if to_date and transaction.date > to_date:
+            # 종료 날짜보다 이후 거래는 제외
+            if (
+                to_date
+                and transaction.date > to_date
+            ):
                 continue
 
-            if category and transaction.category != category:
+            # 지정한 카테고리와 다른 거래는 제외
+            if (
+                category
+                and transaction.category != category
+            ):
                 continue
 
-            if transaction_type and transaction.type != transaction_type:
+            # 지정한 거래 타입과 다른 거래는 제외
+            if (
+                transaction_type
+                and transaction.type != transaction_type
+            ):
                 continue
 
-            if query and query.lower() not in transaction.memo.lower():
+            # 메모에 검색어가 없는 거래는 제외
+            if (
+                query
+                and query.lower()
+                not in transaction.memo.lower()
+            ):
                 continue
 
+            # 지정한 태그가 없는 거래는 제외
             if tag and tag not in transaction.tags:
                 continue
 
-            results.append(transaction)
+            transactions.append(transaction)
 
-        results.reverse()
-
-        return results
+        return transactions
 
     # 특정 월의 수입, 지출, 잔액과 카테고리별 지출을 요약
     @measure_time
@@ -356,81 +383,155 @@ class TransactionService:
             transaction_id
         )
 
-        # CSV의 모든 거래를 검증한 뒤 문제가 없으면 한 번에 저장
+    # CSV 거래를 모두 검증한 뒤 새로운 ID를 생성하여 저장
     def import_transactions(
         self,
         input_path: str,
     ) -> int:
         if not input_path.strip():
-            raise ValueError("입력 파일 경로를 입력해야 합니다.")
+            raise ValueError(
+                "입력 파일 경로를 입력해야 합니다."
+            )
 
         categories = list(
             self.category_repository.stream_all()
         )
 
-        existing_ids = {
-            transaction.id
-            for transaction
-            in self.transaction_repository.stream_all()
-        }
-
         imported_transactions: list[Transaction] = []
 
-        for transaction in (
-            self.transaction_repository.stream_csv(input_path)
+        for row in self.transaction_repository.stream_csv(
+            input_path
         ):
-            if transaction.id in existing_ids:
+            date = row["date"].strip()
+            transaction_type = row["type"].strip()
+            category = row["category"].strip()
+            amount = row["amount"].strip()
+            memo = row.get("memo", "").strip()
+
+            tags = [
+                tag.strip()
+                for tag in row.get("tags", "").split(",")
+                if tag.strip()
+            ]
+
+            if not validate_date(date):
                 raise ValueError(
-                    f"이미 존재하는 거래 ID입니다: "
-                    f"{transaction.id}"
+                    f"날짜 형식이 올바르지 않습니다: {date}"
                 )
 
-            if transaction.id in {
-                item.id for item in imported_transactions
-            }:
+            if not validate_type(transaction_type):
                 raise ValueError(
-                    f"CSV 내부에 중복된 거래 ID가 있습니다: "
-                    f"{transaction.id}"
+                    "거래 타입이 올바르지 않습니다: "
+                    f"{transaction_type}"
                 )
 
-            if not validate_date(transaction.date):
+            if not validate_category(
+                category,
+                categories,
+            ):
                 raise ValueError(
-                    f"날짜 형식이 올바르지 않습니다: "
-                    f"{transaction.date}"
+                    "등록되지 않은 카테고리입니다: "
+                    f"{category}"
                 )
 
-            if not validate_type(transaction.type):
-                raise ValueError(
-                    f"거래 타입이 올바르지 않습니다: "
-                    f"{transaction.type}"
-                )
-
-            if transaction.category not in categories:
-                raise ValueError(
-                    f"등록되지 않은 카테고리입니다: "
-                    f"{transaction.category}"
-                )
-
-            if transaction.amount <= 0:
+            if not validate_amount(amount):
                 raise ValueError(
                     "금액은 0보다 큰 정수여야 합니다."
                 )
 
-            imported_transactions.append(transaction)
+            imported_transactions.append(
+                Transaction(
+                    id="",
+                    type=transaction_type,
+                    date=date,
+                    amount=int(amount),
+                    category=category,
+                    memo=memo,
+                    tags=tags,
+                )
+            )
 
-        for transaction in imported_transactions:
-            self.transaction_repository.save(transaction)
+            next_id_number = self.get_max_id_number() + 1
 
-        return len(imported_transactions)
+            for transaction in imported_transactions:
+                transaction.id = (
+                    f"TX-{next_id_number:06d}"
+                )
 
-    # 저장된 거래를 CSV 파일로 내보내기
+                self.transaction_repository.save(
+                    transaction
+                )
+
+                next_id_number += 1
+
+            return len(imported_transactions)
+
+    # 조건에 맞는 거래를 CSV 파일로 내보내기
     def export_transactions(
         self,
         output_path: str,
+        month: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
     ) -> int:
         if not output_path.strip():
             raise ValueError("출력 파일 경로를 입력해야 합니다.")
 
+        if not month and not from_date and not to_date:
+            raise ValueError(
+                "내보내기 조건을 하나 이상 입력해야 합니다."
+            )
+
+        if month and not validate_month(month):
+            raise ValueError("월 형식이 올바르지 않습니다.")
+
+        if from_date and not validate_date(from_date):
+            raise ValueError("시작 날짜 형식이 올바르지 않습니다.")
+
+        if to_date and not validate_date(to_date):
+            raise ValueError("종료 날짜 형식이 올바르지 않습니다.")
+
+        if from_date and to_date and from_date > to_date:
+            raise ValueError(
+                "시작 날짜는 종료 날짜보다 늦을 수 없습니다."
+            )
+
+        transactions: list[Transaction] = []
+
+        for transaction in self.transaction_repository.stream_all():
+            if month and not transaction.date.startswith(month):
+                continue
+
+            if from_date and transaction.date < from_date:
+                continue
+
+            if to_date and transaction.date > to_date:
+                continue
+
+            transactions.append(transaction)
+
         return self.transaction_repository.export_csv(
-            output_path
+            output_path,
+            transactions,
         )
+
+    # 현재 저장된 거래 중 가장 큰 ID 번호를 조회
+    def get_max_id_number(self) -> int:
+        max_number = 0
+
+        for transaction in (
+            self.transaction_repository.stream_all()
+        ):
+            if transaction.id.startswith("TX-"):
+                try:
+                    number = int(
+                        transaction.id.replace("TX-", "")
+                    )
+                    max_number = max(
+                        max_number,
+                        number,
+                    )
+                except ValueError:
+                    continue
+
+        return max_number

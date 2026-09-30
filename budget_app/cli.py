@@ -340,9 +340,26 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     export_parser.add_argument(
-        "--output",
+        "--out",
         required=True,
         help="저장할 CSV 파일 경로",
+    )
+
+    export_parser.add_argument(
+        "--month",
+        help="내보낼 월 (YYYY-MM)",
+    )
+
+    export_parser.add_argument(
+        "--from",
+        dest="from_date",
+        help="내보낼 시작 날짜 (YYYY-MM-DD)",
+    )
+
+    export_parser.add_argument(
+        "--to",
+        dest="to_date",
+        help="내보낼 종료 날짜 (YYYY-MM-DD)",
     )
 
     import_parser = subparsers.add_parser(
@@ -351,7 +368,8 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     import_parser.add_argument(
-        "--input",
+        "--from",
+        dest="input_path",
         required=True,
         help="가져올 CSV 파일 경로",
     )
@@ -535,14 +553,20 @@ def handle_delete(
     return 1
 
 
-# 거래 데이터를 CSV 파일로 내보내기
+# 거래 데이터를 조건에 따라 CSV 파일로 내보내기
 def handle_export(
     transaction_service: TransactionService,
     output_path: str,
+    month: str | None,
+    from_date: str | None,
+    to_date: str | None,
 ) -> int:
     try:
         count = transaction_service.export_transactions(
-            output_path
+            output_path=output_path,
+            month=month,
+            from_date=from_date,
+            to_date=to_date,
         )
 
         print(
@@ -554,7 +578,7 @@ def handle_export(
     except (ValueError, OSError) as error:
         print_error(
             error,
-            "출력 파일 경로를 확인하세요.",
+            "파일 경로와 내보내기 조건을 확인하세요.",
         )
         return 1
 
@@ -673,13 +697,16 @@ def main() -> int:
     elif args.command == "export":
         return handle_export(
             transaction_service,
-            args.output,
+            args.out,
+            args.month,
+            args.from_date,
+            args.to_date,
         )
 
     elif args.command == "import":
         return handle_import(
             transaction_service,
-            args.input,
+            args.input_path,
         )
 
     else:
