@@ -25,7 +25,7 @@ class TransactionRepository:
 
             file.write(json_line + "\n")
 
-    # 저장된 모든 카테고리를 하나씩 반환
+    # 저장된 모든 거래를 하나씩 반환
     def stream_all(self) -> Generator[Transaction, None, None]:
         with self.file_path.open("r", encoding="utf-8") as file:
             for line in file:
@@ -43,29 +43,39 @@ class TransactionRepository:
         self,
     ) -> Generator[Transaction, None, None]:
         with self.file_path.open(
-            "r",
-            encoding="utf-8",
+            "rb",
         ) as file:
             file.seek(0, 2)
             position = file.tell()
-            line = ""
+            line = bytearray()
 
             while position > 0:
                 position -= 1
                 file.seek(position)
 
-                character = file.read(1)
+                byte = file.read(1)
 
-                if character == "\n":
+                if byte == b"\n":
                     if line:
-                        data = json.loads(line)
+                        decoded_line = bytes(
+                            reversed(line)
+                        ).decode("utf-8")
+
+                        data = json.loads(decoded_line)
+
                         yield Transaction.from_dict(data)
-                        line = ""
+
+                        line.clear()
                 else:
-                    line = character + line
+                    line.append(byte[0])
 
             if line:
-                data = json.loads(line)
+                decoded_line = bytes(
+                    reversed(line)
+                ).decode("utf-8")
+
+                data = json.loads(decoded_line)
+
                 yield Transaction.from_dict(data)
 
     # 전체 거래를 임시 파일에 저장한 뒤 기존 파일을 안전하게 교체
@@ -118,7 +128,7 @@ class TransactionRepository:
         self.rewrite(transactions)
         return True
 
-        # 전달받은 거래를 CSV 파일로 내보내기
+    # 전달받은 거래를 CSV 파일로 내보내기
     def export_csv(
         self,
         output_path: str,

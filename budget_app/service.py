@@ -383,7 +383,7 @@ class TransactionService:
             transaction_id
         )
 
-        # CSV 거래를 모두 검증한 뒤 새로운 ID를 생성하여 저장
+    # CSV 거래를 모두 검증한 뒤 새로운 ID를 생성하여 저장
     def import_transactions(
         self,
         input_path: str,
