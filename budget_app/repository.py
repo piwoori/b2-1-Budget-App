@@ -161,7 +161,7 @@ class TransactionRepository:
 
         return count
 
-        # CSV 파일의 거래 데이터를 하나씩 읽어 반환
+    # CSV 파일의 거래 데이터를 하나씩 읽어 반환
     def stream_csv(
         self,
         input_path: str,

@@ -383,7 +383,7 @@ class TransactionService:
             transaction_id
         )
 
-    # CSV 거래를 모두 검증한 뒤 새로운 ID를 생성하여 저장
+        # CSV 거래를 모두 검증한 뒤 새로운 ID를 생성하여 저장
     def import_transactions(
         self,
         input_path: str,
@@ -399,6 +399,7 @@ class TransactionService:
 
         imported_transactions: list[Transaction] = []
 
+        # CSV의 모든 거래를 읽고 검증
         for row in self.transaction_repository.stream_csv(
             input_path
         ):
@@ -451,20 +452,22 @@ class TransactionService:
                 )
             )
 
-            next_id_number = self.get_max_id_number() + 1
+        # 현재 저장된 거래 다음 번호부터 ID를 생성
+        next_id_number = self.get_max_id_number() + 1
 
-            for transaction in imported_transactions:
-                transaction.id = (
-                    f"TX-{next_id_number:06d}"
-                )
+        # 검증이 끝난 모든 거래를 저장
+        for transaction in imported_transactions:
+            transaction.id = (
+                f"TX-{next_id_number:06d}"
+            )
 
-                self.transaction_repository.save(
-                    transaction
-                )
+            self.transaction_repository.save(
+                transaction
+            )
 
-                next_id_number += 1
+            next_id_number += 1
 
-            return len(imported_transactions)
+        return len(imported_transactions)
 
     # 조건에 맞는 거래를 CSV 파일로 내보내기
     def export_transactions(
